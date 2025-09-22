@@ -49,7 +49,17 @@ const CUSTOM_SKIN_CONFIG = {
     // Example: A Honda NSX has item ID 78. Find the car ID on the item market page.
     // 'CarItemID': 'SkinID',
     skinsByCarId: {
-        '522': '0661b541-eca4-4c75-9914-35daa85c9651', // Example: Lancia Stratos with a specific skin
+        '522': '0661b541-eca4-4c75-9914-35daa85c9651',// Example: Lancia Stratos with a specific skin
+        '78': 'e9c95171-a85f-4874-8a49-25ddf536d2aa',
+        '511': '9e464fa6-275c-44ae-8d50-4648a13f9a46',
+        '85': 'b2a8b231-d385-4f76-966a-307e8ad956d1',
+        '517': '094b898e-a197-4fdd-a6ff-d2ab88e00a4e',
+        '518': 'fc130f42-6fe1-4bdf-98e1-f1207ed04153',
+        '520': '7004b0bc-5750-45e4-be3a-496afb9370b2',
+        '521': '6d533149-3ac5-4209-b7dc-1337987104d4',
+        '522': '0661b541-eca4-4c75-9914-35daa85c9651',
+        '523': 'ddc24665-e41a-44c0-9f3a-3eacb3308f13',
+        '524': '3b642eb4-e774-4c50-a3eb-1beabcf65392',
     }
 };
 // --- END: Custom Skin Configuration ---
