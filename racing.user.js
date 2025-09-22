@@ -6,8 +6,8 @@
 // @author       Lugburz & K1rbs
 // @match        https://www.torn.com/*
 // @require      https://raw.githubusercontent.com/f2404/torn-userscripts/e3bb87d75b44579cdb6f756435696960e009dc84/lib/lugburz_lib.js
-// @updateURL    https://github.com/f2404/torn-userscripts/raw/master/racing_show_speed.user.js
-// @downloadURL  https://github.com/f2404/torn-userscripts/raw/master/racing_show_speed.user.js
+// @updateURL    https://github.com/K1rbsTorn/torn/blob/main/racing.user.js
+// @downloadURL  https://github.com/K1rbsTorn/torn/blob/main/racing.user.js
 // @connect      api.torn.com
 // @connect      race-skins.brainslug.nl
 // @grant        GM_setValue
