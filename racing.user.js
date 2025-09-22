@@ -52,7 +52,7 @@ const CUSTOM_SKIN_CONFIG = {
         '522': '0661b541-eca4-4c75-9914-35daa85c9651',
 
         // This is YOUR CUSTOM skin from your own URL
-        '78': 'https://i.imgur.com/your-image-link.png', // <-- REPLACE WITH YOUR IMAGE URL
+        '78': 'e9c95171-a85f-4874-8a49-25ddf536d2aa', // <-- REPLACE WITH YOUR IMAGE URL
 
         '511': '9e464fa6-275c-44ae-8d50-4648a13f9a46',
         '85': 'b2a8b231-d385-4f76-966a-307e8ad956d1',
