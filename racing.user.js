@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn: Racing enhancements Custom Skin
 // @namespace    lugburz.racing_enhancements
-// @version      0.5.30
+// @version      0.5.31
 // @description  Show car's current speed, precise skill, official race penalty, racing skill of others and race car skins (with custom overrides).
 // @author       Lugburz & K1rbs
 // @match        https://www.torn.com/*
@@ -39,39 +39,51 @@ const SHOW_SKINS = GM_getValue('showSkinsChk') != 0;
 const SKIN_AWARDS = 'https://race-skins.brainslug.nl/custom/data';
 const SKIN_IMAGE = id => `https://race-skins.brainslug.nl/assets/${id}`;
 
-// --- START: Custom Skin Configuration (MODIFIED) ---
-// This section allows you to override skins for specific users and cars.
+
 const CUSTOM_SKIN_CONFIG = {
-    // Add user IDs to this list. The rules below will apply to them.
-    userIds: [3090251, 2958211], // Example User IDs
+    /*
+    H   H  EEEEE  RRRR   EEEEE
+    H   H  E      R   R  E
+    HHHHH  EEEEE  RRRR   EEEEE
+    H   H  E      R  R   E
+    H   H  EEEEE  R   R  EEEEE
+    */
+    // Add user ID to this list.
+    userIds: [3090251, 2958211],
 
+
+
+    /*
+    H   H  EEEEE  RRRR   EEEEE
+    H   H  E      R   R  E
+    HHHHH  EEEEE  RRRR   EEEEE
+    H   H  E      R  R   E
+    H   H  EEEEE  R   R  EEEEE
+   */
     // Define which skin to use for which car ID.
-    // You can use a standard Skin ID OR a full URL to your own image.
+    // https://k1rbstpa.com/mum_cars.html
+    // You can click on the Images on that page and copy paste it here
+    // Make sure to only use one skin per CarId!!!
+
     skinsByCarId: {
-        // This is a STANDARD skin from brainslug.nl
-        '522': '0661b541-eca4-4c75-9914-35daa85c9651',
-
-        // This is YOUR CUSTOM skin from your own URL
-        '78': 'e9c95171-a85f-4874-8a49-25ddf536d2aa', // <-- REPLACE WITH YOUR IMAGE URL
-
-        '511': '9e464fa6-275c-44ae-8d50-4648a13f9a46',
+        '78': 'e9c95171-a85f-4874-8a49-25ddf536d2aa',
         '85': 'b2a8b231-d385-4f76-966a-307e8ad956d1',
+        '511': '9e464fa6-275c-44ae-8d50-4648a13f9a46',
         '517': '094b898e-a197-4fdd-a6ff-d2ab88e00a4e',
         '518': 'fc130f42-6fe1-4bdf-98e1-f1207ed04153',
         '520': '7004b0bc-5750-45e4-be3a-496afb9370b2',
         '521': '6d533149-3ac5-4209-b7dc-1337987104d4',
+        '522': '0661b541-eca4-4c75-9914-35daa85c9651',
         '523': 'ddc24665-e41a-44c0-9f3a-3eacb3308f13',
-        '524': '3b642eb4-e774-4c50-a3eb-1beabcf65392',
+        '524': '3b642eb4-e774-4c50-a3eb-1beabcf65392',   
+          
     }
 };
 // --- END: Custom Skin Configuration ---
 
-// --- START: Random Skin Pool Configuration (NEW) ---
-// Skins here will be randomly applied to players who do NOT have an official skin
-// and are NOT in your 'CUSTOM_SKIN_CONFIG.userIds' list above.
-// Group skin IDs in arrays, keyed by the car's item ID.
+// --- START: Random Skin Pool Configuration  ---
+
 const RANDOM_SKIN_POOL = {
-    // Example for Honda NSX (Car ID '78')
     '78': [
         'e9c95171-a85f-4874-8a49-25ddf536d2aa',
         '6d736e53-95fe-493e-8e11-8649865f4a59',
@@ -270,8 +282,6 @@ const RANDOM_SKIN_POOL = {
         'ed89de12-e3ea-4b3c-adfb-228256dea494',
         'cd790a59-6e50-49fc-8a14-269203fb8ccd',
     ],
-    // Add more car IDs and skin ID arrays as you wish
-    // 'CarID': [ 'SkinID1', 'SkinID2', ... ],
 };
 // --- END: Random Skin Pool Configuration ---
 
@@ -474,29 +484,29 @@ async function getRacingSkinOwners(driverIds) {
     }).then(filterSkins);
 }
 
-let _skinned = false;
 function skinCarSidebar(carSkin) {
     const carSelected = document.querySelector('.car-selected');
     if (!carSelected) return; // fail quietly
     const tornItem = carSelected.querySelector('.torn-item');
     if (!tornItem) return; // fail quietly
-    if (tornItem !== _skinned) {
-        try {
-            // Check if carSkin is a full URL or just an ID
-            const imageUrl = carSkin.startsWith('http')
-                ? carSkin // If it's a URL, use it directly
-                : SKIN_IMAGE(carSkin); // Otherwise, build the URL
 
+    try {
+        // Determine the final URL if it's a full URL or just an ID
+        const imageUrl = carSkin.startsWith('http')
+            ? carSkin // If it's a URL, use it directly
+            : SKIN_IMAGE(carSkin); // Otherwise, build the URL
+
+        // (MODIFIED) Only update the image if the source URL is not already the correct one.
+        if (tornItem.getAttribute('src') !== imageUrl) {
             tornItem.setAttribute('src', imageUrl);
             tornItem.setAttribute('srcset', imageUrl);
             tornItem.style.display = 'block';
             tornItem.style.opacity = 1;
             const canvas = carSelected.querySelector('canvas');
             if ( !! canvas) canvas.style.display = 'none';
-            _skinned = tornItem;
-        } catch (err) {
-            console.error(err);
         }
+    } catch (err) {
+        console.error(err);
     }
 }
 
