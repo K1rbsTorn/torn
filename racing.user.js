@@ -49,7 +49,7 @@ const CUSTOM_SKIN_CONFIG = {
     H   H  EEEEE  R   R  EEEEE
     */
     // Add user ID to this list.
-    userIds: [3090251, 2958211],
+    userIds: [3090251, 2958211, 2718606],
 
 
 
@@ -68,6 +68,7 @@ const CUSTOM_SKIN_CONFIG = {
     skinsByCarId: {
         '78': 'e9c95171-a85f-4874-8a49-25ddf536d2aa',
         '85': 'b2a8b231-d385-4f76-966a-307e8ad956d1',
+        '497': 'https://k1rbstpa.com/barbyPurple.png',
         '511': '9e464fa6-275c-44ae-8d50-4648a13f9a46',
         '517': '094b898e-a197-4fdd-a6ff-d2ab88e00a4e',
         '518': 'fc130f42-6fe1-4bdf-98e1-f1207ed04153',
