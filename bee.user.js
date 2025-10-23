@@ -1,15 +1,39 @@
 // ==UserScript==
 // @name         Torn Send Cash Filler
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.2
 // @description  Adds a "fill" button to the send cash form on Bees Torn profile.
-// @author       K1rbs
+// @author       K1rbs (with 1.2 fix)
 // @match        https://www.torn.com/profiles.php?XID=1959482
 // @grant        none
 // ==/UserScript==
 
 (function() {
     'use strict';
+
+    /**
+     * Sets the value of an input element and dispatches events
+     * in a way that modern JS frameworks (like React) will recognize.
+     */
+    function setNativeValue(element, value) {
+        // Get the prototype of the input element
+        const prototype = Object.getPrototypeOf(element);
+        
+        // Find the native 'value' setter
+        const valueSetter = Object.getOwnPropertyDescriptor(prototype, 'value').set;
+        
+        // Call the native setter with the element and new value
+        if (valueSetter) {
+            valueSetter.call(element, value);
+        } else {
+            // Fallback for older browsers or different element types
+            element.value = value;
+        }
+
+        // Dispatch 'input' and 'change' events, as frameworks listen for these
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+    }
 
     function addFillButton() {
         let cancelButton = document.querySelector('form .cancel-btn.t-blue.c-pointer.h');
@@ -32,11 +56,12 @@
 
                 if (amountInputs.length > 0 && messageInput) {
                     amountInputs.forEach(input => {
-                        input.value = '69';
-                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                        // Use the new function to set the value
+                        setNativeValue(input, '69');
                     });
-                    messageInput.value = 'Why are you ignoring us?';
-                    messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    
+                    // Use the new function for the message as well
+                    setNativeValue(messageInput, 'Why are you ignoring us?');
                 }
             });
             
