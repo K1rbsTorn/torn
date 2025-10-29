@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name          Chain Timer Enhancer (with Alarm, Count, and Settings)
 // @namespace     http://tampermonkey.net/
-// @version       1.9
-// @description   Increase the size and move an element with class "bar-descr___muXn5" to the top of the page, with alarm, chain count, new-tab click, and customizable sound/trigger time.
+// @version       1.10
+// @description   Increase the size and move an element with class "bar-descr___muXn5" to the top of the page, with alarm, chain count, new-tab click, customizable sound/trigger time, and Ctrl+Click attack functionality.
 // @author        K1rbs
 // @license       MIT
 // @match         https://www.torn.com/*
@@ -30,8 +30,11 @@
         return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 
-    function getRandomProfileURL() {
+    function getRandomProfileURL(isAttack) {
         let randID = getRandomNumber(minID, maxID);
+        if (isAttack) {
+            return `https://www.torn.com/loader.php?sid=attack&user2ID=${randID}`;
+        }
         return `https://www.torn.com/profiles.php?XID=${randID}`;
     }
 
@@ -141,8 +144,8 @@
     chainCountElement.textContent = 'Chain: ...';
     document.body.appendChild(chainCountElement);
 
-    chainCountElement.addEventListener('click', function () {
-        const profileLink = getRandomProfileURL();
+    chainCountElement.addEventListener('click', function (e) {
+        const profileLink = getRandomProfileURL(e.ctrlKey);
         window.open(profileLink, '_blank');
     });
 
@@ -163,9 +166,9 @@
         alarmSound.preload = 'auto';
         let hasAlarmPlayed = false;
 
-        element.addEventListener('click', function () {
-            const profileLink = getRandomProfileURL();
-            window.location.href = profileLink;
+        element.addEventListener('click', function (e) {
+            const link = getRandomProfileURL(e.ctrlKey);
+            window.location.href = link;
         });
 
         const chainCountSourceElement = document.querySelector('.chain-bar___vjdPL .bar-value___uxnah');
