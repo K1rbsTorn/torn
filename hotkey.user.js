@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name          Torn Attack Hotkeys
-// @version       1.0.0
+// @version       1.1.0
 // @description   Adds hotkeys to the Torn attack page: S for Start Fight, 1-4 for weapons. Corrected Primary/Secondary selectors. Removes cosmetic elements for faster loading.
 // @author        K1rbs [3090251]
 // @match         https://www.torn.com/loader.php?*
@@ -42,14 +42,15 @@
                     action = 'Secondary Weapon Select';
                     break;
                 case '3':
-                    // Temporary Weapon selector is correct: #weapon_temp
-                    targetElement = document.querySelector('#weapon_temp');
-                    action = 'Temporary Weapon Select';
-                    break;
-                case '4':
-                    // Melee Weapon selector is correct: #weapon_melee
+                    // Melee Weapon selector is correct: #weapon_melee
                     targetElement = document.querySelector('#weapon_melee');
                     action = 'Melee Weapon Select';
+                    break;
+
+                case '4':
+                    // Temporary Weapon selector is correct: #weapon_temp
+                    targetElement = document.querySelector('#weapon_temp');
+                    action = 'Temporary Weapon Select';
                     break;
                 default:
                     return;
