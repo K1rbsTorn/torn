@@ -1,137 +1,229 @@
 // ==UserScript==
-// @name         Torn Item Send Queue (CSV)
+// @name         Torn Race to Send Queue
 // @namespace    http://tampermonkey.net/
-// @version      2.0
-// @description  Fills User ID and Message from a CSV queue when clicking "Add message"
+// @version      2.1
+// @description  Imports race results using a custom UI overlay.
 // @author       You
 // @match        https://www.torn.com/*
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_registerMenuCommand
+// @grant        GM_addStyle
+// @connect      api.torn.com
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    const STORAGE_KEY = 'torn_send_queue';
+    const STORAGE_KEY_QUEUE = 'torn_send_queue';
+    const STORAGE_KEY_API = 'torn_api_key';
 
-    // --- HELPER FUNCTIONS ---
+    // --- CSS STYLES ---
+    GM_addStyle(`
+        #ts-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7); z-index: 99999;
+            display: flex; align-items: center; justify-content: center;
+            font-family: Arial, sans-serif;
+        }
+        #ts-modal {
+            background: #222; color: #ddd; padding: 20px;
+            border-radius: 8px; width: 400px; border: 1px solid #444;
+            box-shadow: 0 0 15px rgba(0,0,0,0.8);
+        }
+        #ts-modal h3 { margin-top: 0; color: #85c742; text-align: center; }
+        .ts-field { margin-bottom: 15px; }
+        .ts-field label { display: block; margin-bottom: 5px; font-size: 12px; color: #aaa; }
+        .ts-field input, .ts-field textarea {
+            width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #555;
+            background: #333; color: #fff; box-sizing: border-box;
+        }
+        .ts-field textarea { resize: vertical; height: 60px; }
+        .ts-buttons { display: flex; gap: 10px; margin-top: 20px; }
+        .ts-btn {
+            flex: 1; padding: 10px; border: none; border-radius: 4px;
+            cursor: pointer; font-weight: bold;
+        }
+        .ts-btn-primary { background: #85c742; color: #000; }
+        .ts-btn-primary:hover { background: #6bad32; }
+        .ts-btn-cancel { background: #444; color: #fff; }
+        .ts-btn-cancel:hover { background: #555; }
+        #ts-progress { margin-top: 15px; background: #111; padding: 10px; border-radius: 4px; font-size: 12px; display: none; }
+        .ts-bar-container { width: 100%; background: #333; height: 6px; border-radius: 3px; margin-top: 5px; overflow: hidden; }
+        .ts-bar-fill { height: 100%; background: #85c742; width: 0%; transition: width 0.3s ease; }
+    `);
 
-    // Get current queue from storage
-    function getQueue() {
-        const stored = GM_getValue(STORAGE_KEY);
-        return stored ? JSON.parse(stored) : [];
+    // --- DATA HELPERS ---
+    const getQueue = () => JSON.parse(GM_getValue(STORAGE_KEY_QUEUE) || '[]');
+    const saveQueue = (q) => GM_setValue(STORAGE_KEY_QUEUE, JSON.stringify(q));
+    const getApiKey = () => GM_getValue(STORAGE_KEY_API, '');
+
+    // --- UI BUILDER ---
+    function createUI() {
+        // Remove existing if any
+        const existing = document.getElementById('ts-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'ts-overlay';
+        overlay.innerHTML = `
+            <div id="ts-modal">
+                <h3>Import Race Data</h3>
+
+                <div id="ts-form">
+                    <div class="ts-field">
+                        <label>Race ID</label>
+                        <input type="text" id="ts-race-id" placeholder="e.g. 12345678" />
+                    </div>
+                    <div class="ts-field">
+                        <label>Message Template</label>
+                        <textarea id="ts-msg-template" placeholder="GG #name! You placed #position."></textarea>
+                        <div style="font-size: 10px; color: #777; margin-top: 3px;">Use <b>#name</b> and <b>#position</b> as placeholders.</div>
+                    </div>
+                    <div class="ts-buttons">
+                        <button id="ts-btn-cancel" class="ts-btn ts-btn-cancel">Cancel</button>
+                        <button id="ts-btn-start" class="ts-btn ts-btn-primary">Start Import</button>
+                    </div>
+                </div>
+
+                <div id="ts-progress">
+                    <div id="ts-status-text">Initializing...</div>
+                    <div class="ts-bar-container"><div id="ts-bar-fill" class="ts-bar-fill"></div></div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        // Event Listeners
+        document.getElementById('ts-btn-cancel').onclick = () => overlay.remove();
+        document.getElementById('ts-btn-start').onclick = startImport;
     }
 
-    // Save queue to storage
-    function saveQueue(queue) {
-        GM_setValue(STORAGE_KEY, JSON.stringify(queue));
-    }
+    // --- LOGIC ---
 
-    // Menu Action: Import CSV
-    function importCSV() {
-        const input = prompt("Paste your CSV list here:\nFormat: UserID,Message (one per line)\n\nExample:\n123456,Thanks!\n789012,Here is your gift");
+    async function startImport() {
+        const apiKey = getApiKey();
+        if (!apiKey) return alert("Please set your API Key in the Tampermonkey menu first!");
 
-        if (!input) return;
+        const raceId = document.getElementById('ts-race-id').value.trim();
+        const template = document.getElementById('ts-msg-template').value.trim();
 
-        const queue = getQueue();
-        const lines = input.split('\n');
-        let addedCount = 0;
+        if (!raceId || !template) return alert("Please fill in both fields.");
 
-        lines.forEach(line => {
-            // Split by the first comma only, allowing commas in the message
-            const parts = line.split(',');
-            if (parts.length >= 2) {
-                const id = parts[0].trim();
-                // Join the rest back together in case the message had commas
-                const msg = parts.slice(1).join(',').trim();
+        // Switch to progress view
+        const formDiv = document.getElementById('ts-form');
+        const progressDiv = document.getElementById('ts-progress');
+        const statusText = document.getElementById('ts-status-text');
+        const barFill = document.getElementById('ts-bar-fill');
 
-                if (id && msg) {
-                    queue.push({ id: id, msg: msg });
-                    addedCount++;
-                }
+        formDiv.style.display = 'none';
+        progressDiv.style.display = 'block';
+
+        try {
+            statusText.innerText = "Fetching Race Results...";
+
+            // 1. Fetch Race
+            const raceResp = await fetch(`https://api.torn.com/v2/racing/${raceId}/race?key=${apiKey}`);
+            const raceData = await raceResp.json();
+
+            if (raceData.error) throw new Error(raceData.error.error);
+            const results = raceData.race.results;
+            if (!results || results.length === 0) throw new Error("No racers found.");
+
+            // 2. Loop
+            const finalQueue = [];
+            const delay = (ms) => new Promise(res => setTimeout(res, ms));
+
+            for (let i = 0; i < results.length; i++) {
+                const res = results[i];
+                const pct = Math.round(((i + 1) / results.length) * 100);
+
+                statusText.innerText = `Fetching name for ID: ${res.driver_id} (${i + 1}/${results.length})`;
+                barFill.style.width = `${pct}%`;
+
+                // Fetch Name
+                let name = `ID:${res.driver_id}`;
+                try {
+                    const userResp = await fetch(`https://api.torn.com/user/${res.driver_id}?key=${apiKey}`);
+                    const userData = await userResp.json();
+                    if (userData.name) name = userData.name;
+                } catch (e) { console.error(e); }
+
+                const msg = template.replace(/#name/g, name).replace(/#position/g, res.position);
+                finalQueue.push({ id: res.driver_id, msg: msg });
+
+                // Rate limit safety
+                if (i < results.length - 1) await delay(700);
             }
-        });
 
-        saveQueue(queue);
-        alert(`Successfully added ${addedCount} entries to the queue.\nTotal in queue: ${queue.length}`);
+            saveQueue(finalQueue);
+            document.getElementById('ts-overlay').remove();
+            alert(`✅ Success! ${finalQueue.length} racers added to queue.`);
+
+        } catch (error) {
+            alert("Error: " + error.message);
+            document.getElementById('ts-overlay').remove();
+        }
     }
 
-    // Menu Action: Check Status
+    // --- STANDARD MENU ACTIONS ---
+    function setApiKey() {
+        const key = prompt("Enter your Torn API Key:", getApiKey());
+        if (key) GM_setValue(STORAGE_KEY_API, key.trim());
+    }
+
     function checkQueue() {
-        const queue = getQueue();
-        if (queue.length === 0) {
-            alert("The queue is currently empty.");
-        } else {
-            alert(`Next up: ID ${queue[0].id}\nRemaining in queue: ${queue.length}`);
-        }
+        const q = getQueue();
+        alert(q.length === 0 ? "Queue is empty." : `Next: ID ${q[0].id}\nMsg: ${q[0].msg}\nRemaining: ${q.length}`);
     }
 
-    // Menu Action: Clear Queue
     function clearQueue() {
-        if(confirm("Are you sure you want to delete the entire queue?")) {
-            saveQueue([]);
-            alert("Queue cleared.");
-        }
+        if (confirm("Clear queue?")) saveQueue([]);
     }
 
-    // --- MENU REGISTRATION ---
-    GM_registerMenuCommand("📥 Import CSV Data", importCSV);
-    GM_registerMenuCommand("📊 Check Queue Status", checkQueue);
+    // --- REGISTRATION ---
+    GM_registerMenuCommand("🏎️ Import Race (Open GUI)", createUI);
+    GM_registerMenuCommand("🔑 Set API Key", setApiKey);
+    GM_registerMenuCommand("📊 Check Status", checkQueue);
     GM_registerMenuCommand("🗑️ Clear Queue", clearQueue);
 
-    // --- CLICK HANDLER ---
-
+    // --- AUTO-FILL CLICK LISTENER ---
     document.addEventListener('click', function(e) {
         const button = e.target.closest('.action-message');
+        if (!button) return;
 
-        if (button) {
-            // 1. Check the queue first
-            const queue = getQueue();
+        const queue = getQueue();
+        if (queue.length === 0) return;
 
-            if (queue.length === 0) {
-                console.log("Torn Script: Queue is empty. No action taken.");
-                return; // Do nothing if queue is empty (allows manual entry)
-            }
+        const item = queue[0];
 
-            // 2. Get the first item
-            const nextItem = queue[0];
-            console.log(`Torn Script: Filling for ID ${nextItem.id}`);
+        setTimeout(() => {
+            const form = button.closest('form');
+            if (!form) return;
 
-            setTimeout(() => {
-                const form = button.closest('form');
-                if (!form) return;
+            const idInput = form.querySelector('input[name="userID"]');
+            const msgInput = form.querySelector('input[name="tag"]');
+            const btnLabel = button.querySelector('.action-add');
 
-                const idInput = form.querySelector('input[name="userID"]');
-                const msgInput = form.querySelector('input[name="tag"]');
-                const btnLabel = button.querySelector('.action-add'); // Visual feedback element
+            if (idInput && msgInput) {
+                idInput.value = item.id;
+                msgInput.value = item.msg;
 
-                // Helper to fill input
-                const fillInput = (input, value) => {
-                    if (input) {
-                        input.value = value;
-                        input.dispatchEvent(new Event('input', { bubbles: true }));
-                        input.dispatchEvent(new Event('change', { bubbles: true }));
-                        input.dispatchEvent(new Event('blur', { bubbles: true }));
-                    }
-                };
+                [idInput, msgInput].forEach(el => {
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                    el.dispatchEvent(new Event('blur', { bubbles: true }));
+                });
 
-                // Fill the form
-                fillInput(idInput, nextItem.id);
-                fillInput(msgInput, nextItem.msg);
-
-                // 3. Remove the item from the queue and save
                 queue.shift();
                 saveQueue(queue);
 
-                // Optional: Visual Feedback (Change "Add" to "Remaining: 5")
-                if(btnLabel) {
-                    btnLabel.innerText = `Done! Rem: ${queue.length}`;
-                    btnLabel.style.color = "green";
+                if (btnLabel) {
+                    btnLabel.innerText = `Rem: ${queue.length}`;
+                    btnLabel.style.color = "#85c742";
                 }
-
-            }, 50);
-        }
+            }
+        }, 50);
     }, true);
 
 })();
