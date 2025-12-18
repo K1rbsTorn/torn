@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      1.2
 // @description  Replaces the Status column data with a Timer. Perfect alignment.
-// @author       Gemini
+// @author       K1rbs
 // @match        https://www.torn.com/loader.php?sid=russianRoulette*
 // @match        https://www.torn.com/page.php?sid=russianRoulette*
 // @match        https://www.torn.com/russianRoulette*
