@@ -1,14 +1,15 @@
 // ==UserScript==
 // @name         Torn: Racing enhancements Custom Skin
 // @namespace    lugburz.racing_enhancements
-// @version      0.5.38
+// @version      0.5.44
 // @description  Show car's current speed, precise skill, official race penalty, racing skill of others and race car skins (with custom overrides).
 // @author       Lugburz & K1rbs
 // @match        https://www.torn.com/page.php?sid=racing*
 // @match        https://www.torn.com/loader.php?sid=racing*
+// @updateURL    https://raw.githubusercontent.com/K1rbsTorn/torn/main/racing.user.js
+// @downloadURL  https://raw.githubusercontent.com/K1rbsTorn/torn/main/racing.user.js
 // @require      https://raw.githubusercontent.com/f2404/torn-userscripts/e3bb87d75b44579cdb6f756435696960e009dc84/lib/lugburz_lib.js
 // @connect      api.torn.com
-// @connect      race-skins.brainslug.nl
 // @connect      k1rbstpa.com
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -24,18 +25,30 @@ const SHOW_SPEED = GM_getValue('showSpeedChk') != 0;
 const SHOW_POSITION_ICONS = GM_getValue('showPositionIconChk') != 0;
 let FETCH_RS = !!(GM_getValue('apiKey') && GM_getValue('apiKey').length > 0);
 const SHOW_SKINS = GM_getValue('showSkinsChk') != 0;
-// --- NEW SETTING ---
-const APPLY_RANDOM_SKINS = GM_getValue('showRandomSkinsChk', 1) != 0; // Default to ON
+const APPLY_RANDOM_SKINS = GM_getValue('showRandomSkinsChk', 1) != 0;
 
-const SKIN_AWARDS = 'https://race-skins.brainslug.nl/custom/data';
-const SKIN_IMAGE = id => `https://race-skins.brainslug.nl/assets/${id}`;
+const SKIN_AWARDS = 'https://k1rbstpa.com/data';
+// Helper to construct image URL and ensure .png extension
+const SKIN_IMAGE = id => {
+    if (!id) return '';
+    if (id.startsWith('http')) return fixBrokenPath(id);
+    return `https://k1rbstpa.com/cars/${id.endsWith('.png') ? id : id + '.png'}`;
+};
+// Helper to fix missing '/cars/' in k1rbstpa URLs
+const fixBrokenPath = (url) => {
+    if (url.includes('k1rbstpa.com') && !url.includes('/cars/') && url.endsWith('.png')) {
+        return url.replace('k1rbstpa.com/', 'k1rbstpa.com/cars/');
+    }
+    return url;
+};
+
 const SKIN_GALLERY_URL = 'https://k1rbstpa.com/mum_cars.html';
 
 const DEFAULT_CUSTOM_SKIN_CONFIG = {
     userIds: [3090251, 2958211, 2718606],
     skinsByCarId: {
         '78': 'e9c95171-a85f-4874-8a49-25ddf536d2aa', '85': 'b2a8b231-d385-4f76-966a-307e8ad956d1',
-        '497': 'https://k1rbstpa.com/barbyPurple.png', '511': '9e464fa6-275c-44ae-8d50-4648a13f9a46',
+        '497': 'https://k1rbstpa.com/cars/barbyPurple.png', '511': '9e464fa6-275c-44ae-8d50-4648a13f9a46',
         '517': '094b898e-a197-4fdd-a6ff-d2ab88e00a4e', '518': 'fc130f42-6fe1-4bdf-98e1-f1207ed04153',
         '520': '7004b0bc-5750-45e4-be3a-496afb9370b2', '521': '6d533149-3ac5-4209-b7dc-1337987104d4',
         '522': '0661b541-eca4-4c75-9914-35daa85c9651', '523': 'ddc24665-e41a-44c0-9f3a-3eacb3308f13',
@@ -117,7 +130,7 @@ async function updateDriversList() {
             if (CUSTOM_SKIN_CONFIG.userIds.includes(driverId)) {
                 const customSkinForThisCar = CUSTOM_SKIN_CONFIG.skinsByCarId[carId];
                 if (customSkinForThisCar) {
-                    const customSkinUrl = customSkinForThisCar.startsWith('http') ? customSkinForThisCar : SKIN_IMAGE(customSkinForThisCar);
+                    const customSkinUrl = SKIN_IMAGE(customSkinForThisCar);
                     if (carImg.getAttribute('src') !== customSkinUrl) carImg.setAttribute('src', customSkinUrl);
                     if (!carImg.dataset.skinWatcher) {
                         carImg.dataset.skinWatcher = 'true';
@@ -213,7 +226,7 @@ function skinCarSidebar(carSkin) {
     const tornItem = carSelected.querySelector('.torn-item');
     if (!tornItem) return;
     try {
-        const imageUrl = carSkin.startsWith('http') ? carSkin : SKIN_IMAGE(carSkin);
+        const imageUrl = SKIN_IMAGE(carSkin);
         if (tornItem.getAttribute('src') !== imageUrl) {
             tornItem.setAttribute('src', imageUrl);
             tornItem.setAttribute('srcset', imageUrl);
@@ -412,7 +425,7 @@ function showResults(results, start = 0) {
 }
 
 async function getCarSkinData() {
-    const CACHE_KEY = 'carSkinDataCache';
+    const CACHE_KEY = 'carSkinDataCache_v3'; // Changed key to force refresh
     const CACHE_EXPIRATION = 24 * 60 * 60 * 1000;
     const cached = JSON.parse(GM_getValue(CACHE_KEY, null));
     if (cached && (Date.now() - cached.timestamp < CACHE_EXPIRATION)) {
@@ -427,7 +440,8 @@ async function getCarSkinData() {
                     const doc = parser.parseFromString(response.responseText, 'text/html');
                     const carItems = doc.querySelectorAll('.car-item');
                     const skins = [];
-                    const infoRegex = /showInfo\('([^']*)',\s*'([^']*)'\)/;
+                    // Updated regex to handle both single and double quotes
+                    const infoRegex = /showInfo\(['"]([^'"]*)['"],\s*['"]([^'"]*)['"]\)/;
                     carItems.forEach(item => {
                         const onclickAttr = item.getAttribute('onclick');
                         const match = onclickAttr.match(infoRegex);
@@ -481,9 +495,11 @@ function populateGalleryGrid(allSkins, filterKey) {
     galleryContainer.empty();
     const filteredSkins = (filterKey === 'all') ? allSkins : allSkins.filter(skin => skin.key === filterKey);
     filteredSkins.forEach(skin => {
+        // Fix: check if the identifier is already a URL
+        const imageUrl = SKIN_IMAGE(skin.uuid);
         const item = $(`
             <div class="gallery-item" data-key="${skin.key}" data-uuid="${skin.uuid}">
-                <img src="${SKIN_IMAGE(skin.uuid)}" alt="Car Skin for ${skin.key}" loading="lazy" />
+                <img src="${imageUrl}" alt="Car Skin for ${skin.key}" loading="lazy" />
                 <div class="gallery-item-info">Car ID: ${skin.key}</div>
             </div>
         `);
@@ -523,6 +539,9 @@ function addSettingsDiv() {
                         <span class="input-wrap" style="margin: 0 5px 5px;"><input type="text" autocomplete="off" id="apiKey"></span>
                         <a href="#" id="saveApiKey" class="link btn-action-tab tt-modified"><i style="display: inline-block; background: url(/images/v2/racing/car_enlist.png) 0 0 no-repeat; vertical-align: middle; height: 15px; width: 15px;"></i>Save</a>
                     </li>
+                    <li><a href="#" id="clearSkinCache" class="link btn-action-tab tt-modified" style="margin-top: 5px;"><i style="display: inline-block; background: url(/images/v2/racing/car_enlist.png) 0 0 no-repeat; vertical-align: middle; height: 15px; width: 15px; filter: hue-rotate(180deg);"></i> Clear Skin Cache</a>
+                        <span id="clear-cache-feedback" style="color: lightgreen; margin-left: 10px; display: none;">Cache Cleared!</span>
+                    </li>
                     <hr style="margin: 10px 0; border-color: #444;">
                     <li style="font-weight: bold;">Custom Skin Overrides</li>
                     <li><label for="customUserIds" style="display: block; margin-bottom: 5px;">User IDs to override (comma-separated):</label>
@@ -549,6 +568,11 @@ function addSettingsDiv() {
         $('#racingEnhSettings').on('click', () => $('#racingEnhSettingsContainer').toggle());
         $('#racingEnhSettingsContainer').on('click', 'input[type=checkbox]', function() { GM_setValue($(this).attr('id'), $(this).prop('checked') ? 1 : 0); });
         $('#saveApiKey').click(e => { e.preventDefault(); e.stopPropagation(); GM_setValue('apiKey', $('#apiKey').val()); updateDriversList(); });
+        $('#clearSkinCache').click(e => {
+            e.preventDefault(); e.stopPropagation();
+            GM_setValue('carSkinDataCache_v3', null);
+            $('#clear-cache-feedback').show().fadeOut(3000);
+        });
         $('#openCarGalleryBtn').click(e => { e.preventDefault(); e.stopPropagation(); openCarGallery(); });
         $('#saveCustomSkins').click(e => {
             e.preventDefault(); e.stopPropagation();
