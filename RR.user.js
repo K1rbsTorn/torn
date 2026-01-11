@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Torn Russian Roulette Filter & Timer (Content Swap)
+// @name         Torn Russian Roulette Filter & Timer (Self-Healing)
 // @namespace    http://tampermonkey.net/
-// @version      1.2
-// @description  Replaces the Status column data with a Timer. Perfect alignment.
+// @version      1.3
+// @description  Replaces the Status column data with a Timer.
 // @author       K1rbs
 // @match        https://www.torn.com/loader.php?sid=russianRoulette*
 // @match        https://www.torn.com/page.php?sid=russianRoulette*
@@ -14,18 +14,18 @@
 (function() {
     'use strict';
 
+    // Selectors based on your provided HTML
     const SELECTORS = {
         rowsContainer: '.rowsWrap___QDquR',
         row: '.row___CHcax',
         startBlock: '.startBlock___pbhtb',
         headerRow: '.columnsWrap___WW3tH',
         betBlock: '.betBlock___wz9ED',
-        statusBlock: '.statusBlock___j4JSQ' 
+        statusBlock: '.statusBlock___j4JSQ'
     };
 
     const TIMERS = new Map();
     let currentMinBet = 0;
-
 
     GM_addStyle(`
         .rr-custom-filter {
@@ -42,6 +42,16 @@
         @media (prefers-color-scheme: dark) {
             .rr-custom-filter { background: #333; color: #fff; border: 1px solid #555; }
         }
+        /* Visual cue for the timer */
+        .rr-hijacked {
+            font-family: monospace;
+            font-weight: bold;
+            color: #999;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
     `);
 
     // --- MAIN WAIT LOADER ---
@@ -49,7 +59,7 @@
         const container = document.querySelector(SELECTORS.rowsContainer);
         const startBlock = document.querySelector(SELECTORS.startBlock);
         const headerRow = document.querySelector(SELECTORS.headerRow);
-        
+
         if (container && startBlock && headerRow) {
             clearInterval(waitInterval);
             init(container, startBlock, headerRow);
@@ -65,11 +75,11 @@
             headerRow.children[1].innerText = "Timer";
         }
 
-
+        // Process existing rows immediately
         const existingRows = container.querySelectorAll(SELECTORS.row);
         existingRows.forEach(processRow);
 
-
+        // Watch for NEW rows being added
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 mutation.addedNodes.forEach((node) => {
@@ -81,10 +91,9 @@
         });
         observer.observe(container, { childList: true });
 
-
+        // Start the loop
         setInterval(updateTimerDisplay, 1000);
     }
-
 
     function injectFilterInput(startBlock) {
         if (startBlock.querySelector('.rr-custom-filter')) return;
@@ -103,30 +112,19 @@
     // --- LOGIC ---
     function processRow(row) {
         const id = row.id;
-        
 
+        // Initialize timer start time if not exists
         if (!TIMERS.has(id)) {
             TIMERS.set(id, Date.now());
         }
 
-
         const statusBlock = row.querySelector(SELECTORS.statusBlock);
+
+        // Only modify if it hasn't been modified yet (or if React wiped the class)
         if (statusBlock && !statusBlock.classList.contains('rr-hijacked')) {
             statusBlock.classList.add('rr-hijacked');
-            
-
-            statusBlock.innerHTML = '';
-            
-
-            statusBlock.style.display = 'flex';
-            statusBlock.style.alignItems = 'center';
-            statusBlock.style.justifyContent = 'center';
-            statusBlock.style.fontFamily = 'monospace';
-            statusBlock.style.fontWeight = 'bold';
-            statusBlock.style.color = '#999';
-            statusBlock.style.fontSize = '14px';
-            
-            statusBlock.innerText = '0s';
+            statusBlock.innerHTML = ''; // Clear "Waiting for opponent..."
+            statusBlock.innerText = '0s'; // Placeholder
         }
 
         checkRowVisibility(row);
@@ -135,7 +133,7 @@
     function checkRowVisibility(row) {
         const betBlock = row.querySelector(SELECTORS.betBlock);
         if (!betBlock) return;
-        
+
         const ariaLabel = betBlock.getAttribute('aria-label') || "";
         const betText = betBlock.innerText || "";
         let betValue = parseInt(ariaLabel.replace(/\D/g, ''));
@@ -148,15 +146,30 @@
         document.querySelectorAll(SELECTORS.row).forEach(checkRowVisibility);
     }
 
+    // --- UPDATED TIMER LOOP ---
     function updateTimerDisplay() {
         const now = Date.now();
         const rows = document.querySelectorAll(SELECTORS.row);
+
         rows.forEach(row => {
             const id = row.id;
+
+            // 1. Ensure we have a start time
+            if (!TIMERS.has(id)) {
+                 TIMERS.set(id, Date.now());
+            }
             const startTime = TIMERS.get(id);
-            
-            const statusBlock = row.querySelector('.rr-hijacked');
-            
+
+            let statusBlock = row.querySelector('.rr-hijacked');
+
+            if (!statusBlock) {
+                // RE-APPLY changes immediately
+                processRow(row);
+                // Re-select the block now that processRow has run
+                statusBlock = row.querySelector('.rr-hijacked');
+            }
+
+            // 3. Update the text
             if (startTime && statusBlock) {
                 const diff = Math.floor((now - startTime) / 1000);
                 statusBlock.innerText = formatTime(diff);
