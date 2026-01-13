@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Torn Attack Hotkeys (v1.5 Style + Custom Keys)
-// @version      1.6.0
-// @description  Customizable Hotkeys. Includes Settings & Header Timer.
-// @author       K1rbs [3090251] (Modified)
+// @name         Torn Attack Hotkeys (v1.5 Style + Custom Keys) - No Spam
+// @version      1.6.1
+// @description  Customizable Hotkeys. Includes Settings & Header Timer. Prevents key-hold spam.
+// @author       K1rbs [3090251]
 // @match        https://www.torn.com/loader.php?*
 // @connect      api.torn.com
 // @grant        GM_getValue
@@ -28,7 +28,7 @@
 
     // Default Key Bindings
     const DEFAULTS = {
-        START: 's',
+        START: '1',
         MAIN: '1', SEC: '2', MELEE: '3', TEMP: '4',
         LEAVE: '1', MUG: '2', HOSP: '3'
     };
@@ -226,6 +226,9 @@
         };
 
         document.addEventListener('keydown', function(event) {
+            // FIX: Prevent key-hold spam
+            if (event.repeat) return;
+
             // Prevent triggering when typing in chat/forums/settings
             if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
 
