@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Send Cash Filler (Stationary - Custom Amounts)
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Stationary clicking (Fill -> Send -> Yes -> Okay).
 // @author       K1rbs
 // @match        https://www.torn.com/profiles.php?XID=*
@@ -12,11 +12,23 @@
 (function() {
     'use strict';
 
-    // VARIABLES
-    let savedCoords = null; // Coordinates of the profile button
-    let flowActive = false; // Are we in the middle of a sending flow?
+    let savedCoords = null;
+    let flowActive = false;
 
-    // --- HELPER: Fetch Joke ---
+    function setTornValue(form, value) {
+        const inputs = form.querySelectorAll('input[data-testid="legacy-money-input"]');
+        inputs.forEach(input => {
+            const prototype = Object.getPrototypeOf(input);
+            const setter = Object.getOwnPropertyDescriptor(prototype, 'value').set;
+            if (setter) setter.call(input, value);
+            else input.value = value;
+
+            ['input', 'change', 'blur'].forEach(evt => {
+                input.dispatchEvent(new Event(evt, { bubbles: true }));
+            });
+        });
+    }
+
     function getDadJoke(callback) {
         GM_xmlhttpRequest({
             method: "GET",
@@ -27,28 +39,13 @@
                     try {
                         const data = JSON.parse(response.responseText);
                         callback(data.joke, null);
-                    } catch (e) {
-                        callback(null, "Failed to parse joke.");
-                    }
-                } else {
-                    callback(null, "Joke API request failed.");
-                }
+                    } catch (e) { callback(null, "Failed."); }
+                } else { callback(null, "API error."); }
             },
-            onerror: function() { callback(null, "Network error fetching joke."); }
+            onerror: function() { callback(null, "Network error."); }
         });
     }
 
-    // --- HELPER: Set Input Value ---
-    function setNativeValue(element, value) {
-        const prototype = Object.getPrototypeOf(element);
-        const valueSetter = Object.getOwnPropertyDescriptor(prototype, 'value').set;
-        if (valueSetter) valueSetter.call(element, value);
-        else element.value = value;
-        element.dispatchEvent(new Event('input', { bubbles: true }));
-        element.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-
-    // --- 1. CAPTURE THE STARTING POSITION ---
     document.addEventListener('mousedown', function(e) {
         const target = e.target.closest('a[aria-label="Send cash"], .profile-button-sendMoney');
         if (target) {
@@ -63,137 +60,123 @@
         }
     }, true);
 
-    // --- 2. STEP 1: GHOST SEND BUTTON & AUTO-FILL ---
     function handleFormOverlay() {
         if (!flowActive || !savedCoords) return;
 
         const realSendBtn = document.querySelector('.send-cash-btn');
         if (realSendBtn && !document.getElementById('ghost-send-btn')) {
-
+            
             const form = realSendBtn.closest('form');
-            const amountInput = form.querySelector('input[data-testid="legacy-money-input"]:not([type="hidden"])');
             const messageInput = form.querySelector('.send-cash-message-input.input-text');
 
-            if (!amountInput || !messageInput) return;
-
-            // Hide real button
             realSendBtn.style.opacity = '0';
             realSendBtn.style.pointerEvents = 'none';
 
-            // Create Ghost
             const ghostBtn = document.createElement('button');
             ghostBtn.id = 'ghost-send-btn';
             ghostBtn.textContent = '...';
-
             applyGhostStyles(ghostBtn);
             ghostBtn.style.background = '#ccc';
-            ghostBtn.style.color = '#000';
             ghostBtn.disabled = true;
-
             document.body.appendChild(ghostBtn);
 
-            // --- CUSTOM AMOUNT LOGIC ---
             const urlParams = new URLSearchParams(window.location.search);
-            const currentXID = urlParams.get('XID');
+            const currentXID = urlParams.get('XID') || urlParams.get('ID');
+            let amountToFill = (currentXID === '3090251') ? '999999999' : '69';
 
-            // Check if we are on the specific profile
-            let amountToFill = '69';
-            if (currentXID === '3090251') {
-                amountToFill = '999999999'; // 999 Million
-            }
-
-            setNativeValue(amountInput, amountToFill);
-            setNativeValue(messageInput, 'Fetching joke...');
-
+            setTornValue(form, amountToFill);
+            
             getDadJoke((joke, error) => {
                 const finalMsg = error ? "Why are you ignoring us?" : joke;
-                setNativeValue(messageInput, finalMsg);
+                const prototype = Object.getPrototypeOf(messageInput);
+                const setter = Object.getOwnPropertyDescriptor(prototype, 'value').set;
+                if (setter) setter.call(messageInput, finalMsg);
+                else messageInput.value = finalMsg;
+                messageInput.dispatchEvent(new Event('input', { bubbles: true }));
 
-                // Ready state
                 ghostBtn.textContent = 'SEND';
-                ghostBtn.style.background = '#85c742'; // Green
+                ghostBtn.style.background = '#85c742';
                 ghostBtn.style.color = '#fff';
                 ghostBtn.disabled = false;
 
-                ghostBtn.addEventListener('click', (e) => {
-                    e.preventDefault(); e.stopPropagation();
-                    realSendBtn.click();
-                    ghostBtn.remove();
-                });
+                ghostBtn.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const submitEvent = new Event('submit', {
+                        bubbles: true,
+                        cancelable: true
+                    });
+                    
+                    form.dispatchEvent(submitEvent);
+                    
+                    setTimeout(() => {
+                        if (document.body.contains(ghostBtn)) {
+                            realSendBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                            ghostBtn.remove();
+                        }
+                    }, 50);
+                };
             });
         }
     }
 
-    // --- 3. STEP 2: GHOST YES BUTTON ---
     function handleConfirmOverlay() {
         if (!flowActive || !savedCoords) return;
-
         const realYesBtn = document.querySelector('.confirm-action-yes');
         if (realYesBtn && !document.getElementById('ghost-yes-btn')) {
-
             const ghostYes = document.createElement('button');
             ghostYes.id = 'ghost-yes-btn';
             ghostYes.textContent = 'YES';
-
             applyGhostStyles(ghostYes);
-            ghostYes.style.background = '#85c742'; // Green
+            ghostYes.style.background = '#85c742';
             ghostYes.style.color = '#fff';
-
             document.body.appendChild(ghostYes);
 
-            ghostYes.addEventListener('click', (e) => {
-                e.preventDefault(); e.stopPropagation();
-                realYesBtn.click();
+            ghostYes.onclick = (e) => {
+                e.preventDefault();
+                realYesBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
                 ghostYes.remove();
-            });
+            };
         }
     }
 
-    // --- 4. STEP 3: GHOST OK BUTTON ---
     function handleSuccessOverlay() {
         if (!flowActive || !savedCoords) return;
-
-        const realOkBtn = document.querySelector('.confirm-action.okay');
-
+        const realOkBtn = document.querySelector('.confirm-action.okay, .confirm-action.okay-btn');
         if (realOkBtn && !document.getElementById('ghost-ok-btn')) {
             const ghostOk = document.createElement('button');
             ghostOk.id = 'ghost-ok-btn';
             ghostOk.textContent = 'OKAY';
-
             applyGhostStyles(ghostOk);
-            ghostOk.style.background = '#0055ff'; // Blue
+            ghostOk.style.background = '#0055ff';
             ghostOk.style.color = '#fff';
-
             document.body.appendChild(ghostOk);
 
-            ghostOk.addEventListener('click', (e) => {
-                e.preventDefault(); e.stopPropagation();
-                realOkBtn.click();
+            ghostOk.onclick = (e) => {
+                e.preventDefault();
+                realOkBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
                 ghostOk.remove();
-
-                // Done
                 flowActive = false;
                 savedCoords = null;
-            });
+            };
         }
     }
 
-    // --- HELPER: Apply Styles ---
     function applyGhostStyles(btn) {
         btn.style.position = 'fixed';
         btn.style.top = savedCoords.top + 'px';
         btn.style.left = savedCoords.left + 'px';
         btn.style.width = savedCoords.width + 'px';
         btn.style.height = savedCoords.height + 'px';
-        btn.style.zIndex = '9999999';
+        btn.style.zIndex = '99999999';
         btn.className = 'torn-btn';
         btn.style.border = '1px solid #333';
         btn.style.cursor = 'pointer';
         btn.style.fontWeight = 'bold';
     }
 
-    // --- OBSERVER ---
-    const observer = new MutationObserver((mutations) => {
+    const observer = new MutationObserver(() => {
         if (flowActive) {
             handleFormOverlay();
             handleConfirmOverlay();
