@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Torn Send Cash Filler (Stationary - Custom Amounts)
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Stationary clicking (Fill -> Send -> Yes -> Okay).
 // @author       K1rbs
-// @match        https://www.torn.com/profiles.php?XID=*
+// @match        https://www.torn.com/profiles.php?*
 // @connect      icanhazdadjoke.com
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
@@ -15,18 +15,11 @@
     let savedCoords = null;
     let flowActive = false;
 
-    function setTornValue(form, value) {
-        const inputs = form.querySelectorAll('input[data-testid="legacy-money-input"]');
-        inputs.forEach(input => {
-            const prototype = Object.getPrototypeOf(input);
-            const setter = Object.getOwnPropertyDescriptor(prototype, 'value').set;
-            if (setter) setter.call(input, value);
-            else input.value = value;
-
-            ['input', 'change', 'blur'].forEach(evt => {
-                input.dispatchEvent(new Event(evt, { bubbles: true }));
-            });
-        });
+    function setReactValue(input, value) {
+        const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value').set;
+        setter.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     function getDadJoke(callback) {
@@ -50,12 +43,7 @@
         const target = e.target.closest('a[aria-label="Send cash"], .profile-button-sendMoney');
         if (target) {
             const rect = target.getBoundingClientRect();
-            savedCoords = {
-                top: rect.top,
-                left: rect.left,
-                width: rect.width,
-                height: rect.height
-            };
+            savedCoords = { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
             flowActive = true;
         }
     }, true);
@@ -67,6 +55,7 @@
         if (realSendBtn && !document.getElementById('ghost-send-btn')) {
             
             const form = realSendBtn.closest('form');
+            const amountInputs = form.querySelectorAll('input[data-testid="legacy-money-input"]');
             const messageInput = form.querySelector('.send-cash-message-input.input-text');
 
             realSendBtn.style.opacity = '0';
@@ -84,15 +73,10 @@
             const currentXID = urlParams.get('XID') || urlParams.get('ID');
             let amountToFill = (currentXID === '3090251') ? '999999999' : '69';
 
-            setTornValue(form, amountToFill);
+            amountInputs.forEach(input => setReactValue(input, amountToFill));
             
             getDadJoke((joke, error) => {
-                const finalMsg = error ? "Why are you ignoring us?" : joke;
-                const prototype = Object.getPrototypeOf(messageInput);
-                const setter = Object.getOwnPropertyDescriptor(prototype, 'value').set;
-                if (setter) setter.call(messageInput, finalMsg);
-                else messageInput.value = finalMsg;
-                messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+                setReactValue(messageInput, error ? "Why are you ignoring us?" : joke);
 
                 ghostBtn.textContent = 'SEND';
                 ghostBtn.style.background = '#85c742';
@@ -107,15 +91,21 @@
                         bubbles: true,
                         cancelable: true
                     });
-                    
+
+                    const protector = (event) => {
+                        if (event.defaultPrevented) return;
+                        event.preventDefault(); 
+                    };
+                    form.addEventListener('submit', protector, { capture: true, once: true });
+
                     form.dispatchEvent(submitEvent);
-                    
+
                     setTimeout(() => {
                         if (document.body.contains(ghostBtn)) {
-                            realSendBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                            realSendBtn.click();
                             ghostBtn.remove();
                         }
-                    }, 50);
+                    }, 30);
                 };
             });
         }
@@ -134,8 +124,8 @@
             document.body.appendChild(ghostYes);
 
             ghostYes.onclick = (e) => {
-                e.preventDefault();
-                realYesBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                e.preventDefault(); e.stopPropagation();
+                realYesBtn.click();
                 ghostYes.remove();
             };
         }
@@ -143,7 +133,7 @@
 
     function handleSuccessOverlay() {
         if (!flowActive || !savedCoords) return;
-        const realOkBtn = document.querySelector('.confirm-action.okay, .confirm-action.okay-btn');
+        const realOkBtn = document.querySelector('.confirm-action.okay, .confirm-action.okay-btn, .profile-status.okay .confirm-action');
         if (realOkBtn && !document.getElementById('ghost-ok-btn')) {
             const ghostOk = document.createElement('button');
             ghostOk.id = 'ghost-ok-btn';
@@ -154,8 +144,8 @@
             document.body.appendChild(ghostOk);
 
             ghostOk.onclick = (e) => {
-                e.preventDefault();
-                realOkBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                e.preventDefault(); e.stopPropagation();
+                realOkBtn.click();
                 ghostOk.remove();
                 flowActive = false;
                 savedCoords = null;
@@ -169,7 +159,7 @@
         btn.style.left = savedCoords.left + 'px';
         btn.style.width = savedCoords.width + 'px';
         btn.style.height = savedCoords.height + 'px';
-        btn.style.zIndex = '99999999';
+        btn.style.zIndex = '2147483647';
         btn.className = 'torn-btn';
         btn.style.border = '1px solid #333';
         btn.style.cursor = 'pointer';
@@ -185,5 +175,4 @@
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
-
 })();
