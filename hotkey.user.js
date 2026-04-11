@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Torn Attack Hotkeys (v1.5 Style + Custom Keys) - No Spam
-// @version      1.6.1
+// @version      1.6.2
 // @description  Customizable Hotkeys. Includes Settings & Header Timer. Prevents key-hold spam.
 // @author       K1rbs [3090251]
-// @match        https://www.torn.com/loader.php?*
+// @match         https://www.torn.com/page.php?sid=attack*
 // @connect      api.torn.com
 // @grant        GM_getValue
 // @grant        GM_setValue
