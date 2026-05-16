@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Poker Attack Sidebar & Linker
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Links names in poker to attack page
 // @author       K1rbs
 // @match        https://www.torn.com/loader.php?sid=holdem*
@@ -9,11 +9,12 @@
 // @grant        none
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
-    const NAME_CLASS = 'name___cESdZ';
     const SIDEBAR_ID = 'poker-attack-sidebar';
+    const knownPlayers = new Map();
+    let scanTimeout = null;
 
     const SIDEBAR_STYLES = `
         position: fixed;
@@ -33,106 +34,122 @@
         box-shadow: 0 0 5px rgba(0,0,0,0.5);
     `;
 
-    const knownPlayers = new Map();
-    let scanTimeout = null;
-
-    const existing = document.getElementById(SIDEBAR_ID);
-    if (existing) existing.remove();
+    document.getElementById(SIDEBAR_ID)?.remove();
 
     const sidebar = document.createElement('div');
     sidebar.id = SIDEBAR_ID;
     sidebar.style.cssText = SIDEBAR_STYLES;
-    sidebar.innerHTML = '<div style="font-weight:bold; margin-bottom:5px; border-bottom:1px solid #555;">Player Log</div><div id="poker-player-list"></div>';
+    sidebar.innerHTML = `
+        <div style="font-weight:bold; margin-bottom:5px; border-bottom:1px solid #555;">Player Log</div>
+        <div id="poker-player-list"></div>
+    `;
     document.body.appendChild(sidebar);
+
     const listContainer = sidebar.querySelector('#poker-player-list');
 
     function getAttackUrl(id) {
         return `https://www.torn.com/page.php?sid=attack&user2ID=${id}`;
     }
 
-    function updateSidebar() {
-        let htmlContent = '';
-        knownPlayers.forEach((player, id) => {
-            const color = player.status === 'active' ? '#00FF00' : '#FF4444';
-            htmlContent += `
-                <div style="margin-bottom: 4px;">
-                    <a href="${getAttackUrl(id)}" target="_blank" style="color: ${color}; text-decoration: none; display: block;">
-                        ${player.name}
-                    </a>
-                </div>`;
-        });
+    function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, m => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[m]));
+    }
 
-        if (listContainer.innerHTML !== htmlContent) {
-            listContainer.innerHTML = htmlContent;
-        }
+    function getNameElement(playerEl) {
+        return (
+            playerEl.querySelector('p[class^="name___"]') ||
+            playerEl.querySelector('[class*="name___"]')
+        );
+    }
+
+    function updateSidebar() {
+        listContainer.innerHTML = [...knownPlayers.entries()].map(([id, player]) => {
+            const color = player.status === 'active' ? '#00FF00' : '#FF4444';
+            return `
+                <div style="margin-bottom:4px;">
+                    <a href="${getAttackUrl(id)}" target="_blank" rel="noopener noreferrer"
+                       style="color:${color}; text-decoration:none; display:block;">
+                        ${escapeHtml(player.name)}
+                    </a>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function linkName(nameEl, playerId, playerName) {
+        if (nameEl.dataset.pokerAttackLinked === playerId) return;
+
+        nameEl.textContent = '';
+
+        const a = document.createElement('a');
+        a.href = getAttackUrl(playerId);
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = playerName;
+        a.style.cssText = 'color:inherit;text-decoration:none;border-bottom:1px dotted white;';
+
+        nameEl.appendChild(a);
+        nameEl.dataset.pokerAttackLinked = playerId;
     }
 
     function scanTable() {
         const currentPlayersOnTable = new Set();
-        const nameElements = document.querySelectorAll(`.${NAME_CLASS}`);
         let dataChanged = false;
 
-        nameElements.forEach(nameEl => {
-            const container = nameEl.closest(`[id^="player-"]`);
-            if (container) {
-                const playerId = container.id.split('-')[1];
-                const playerName = nameEl.textContent;
+        document.querySelectorAll('[id^="player-"]').forEach(playerEl => {
+            const match = playerEl.id.match(/^player-(\d+)$/);
+            if (!match) return;
 
-                if (playerId) {
-                    currentPlayersOnTable.add(playerId);
+            const playerId = match[1];
+            const nameEl = getNameElement(playerEl);
+            if (!nameEl) return;
 
-                    if (!knownPlayers.has(playerId)) {
-                        knownPlayers.set(playerId, { name: playerName, status: 'active' });
-                        dataChanged = true;
-                    } else {
-                        const p = knownPlayers.get(playerId);
-                        if(p.status !== 'active') {
-                            p.status = 'active';
-                            knownPlayers.set(playerId, p);
-                            dataChanged = true;
-                        }
-                    }
+            const playerName = nameEl.textContent.trim();
+            if (!playerName) return;
 
-                    if (nameEl.getAttribute('data-linked') !== 'true') {
-                         nameEl.innerHTML = `<a href="${getAttackUrl(playerId)}" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px dotted white;">${playerName}</a>`;
-                         nameEl.setAttribute('data-linked', 'true');
-                    }
-                }
+            currentPlayersOnTable.add(playerId);
+
+            const existing = knownPlayers.get(playerId);
+            if (!existing) {
+                knownPlayers.set(playerId, { name: playerName, status: 'active' });
+                dataChanged = true;
+            } else if (existing.status !== 'active' || existing.name !== playerName) {
+                existing.status = 'active';
+                existing.name = playerName;
+                dataChanged = true;
             }
+
+            linkName(nameEl, playerId, playerName);
         });
 
         knownPlayers.forEach((player, id) => {
             if (!currentPlayersOnTable.has(id) && player.status === 'active') {
                 player.status = 'left';
-                knownPlayers.set(id, player);
                 dataChanged = true;
             }
         });
 
-        if (dataChanged) {
-            updateSidebar();
-        }
+        if (dataChanged) updateSidebar();
     }
 
-    const observer = new MutationObserver((mutations) => {
-        const isSidebarMutation = mutations.some(m =>
-            m.target.id === SIDEBAR_ID ||
-            (m.target.closest && m.target.closest('#' + SIDEBAR_ID))
-        );
+    const observer = new MutationObserver(mutations => {
+        if (mutations.some(m => m.target.closest?.('#' + SIDEBAR_ID))) return;
 
-        if (isSidebarMutation) return;
-
-        if (scanTimeout) clearTimeout(scanTimeout);
-        scanTimeout = setTimeout(() => {
-            scanTable();
-        }, 500);
+        clearTimeout(scanTimeout);
+        scanTimeout = setTimeout(scanTable, 300);
     });
 
     observer.observe(document.body, {
         childList: true,
-        subtree: true
+        subtree: true,
+        characterData: true
     });
 
     scanTable();
-
 })();
