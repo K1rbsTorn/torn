@@ -2,7 +2,7 @@
 // @name         Alt-Click to attack page
 // @namespace    http://tampermonkey.net/
 // @author       K1rbs
-// @version      1.3
+// @version      1.4
 // @description  Alt+click user links to attack in a new tab
 // @match        https://www.torn.com/*
 // @grant        GM_openInTab
@@ -18,7 +18,7 @@ document.addEventListener('click', e => {
     if (link) {
         e.preventDefault();
 
-        const attackUrl = `https://www.torn.com/loader.php?sid=attack&user2ID=${link.href.match(/XID=(\d+)/)[1]}`;
+        const attackUrl = `https://www.torn.com/page.php?sid=attack&user2ID=${link.href.match(/XID=(\d+)/)[1]}`;
 
         GM_openInTab(attackUrl, { active: true });
     }
