@@ -47,7 +47,7 @@
     const listContainer = sidebar.querySelector('#poker-player-list');
 
     function getAttackUrl(id) {
-        return `https://www.torn.com/loader.php?sid=attack&user2ID=${id}`;
+        return `https://www.torn.com/page.php?sid=attack&user2ID=${id}`;
     }
 
     function updateSidebar() {
