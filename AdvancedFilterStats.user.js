@@ -2,7 +2,7 @@
 // @name         Advanced Filter Stats
 // @namespace    http://tampermonkey.net/
 // @author       K1rbs
-// @version      1.0
+// @version      1.1
 // @description  Load Torn userlist stats manually with color thresholds
 // @match        https://www.torn.com/page.php?sid=UserList*
 // @updateURL    https://raw.githubusercontent.com/K1rbsTorn/torn/main/AdvancedFilterStats.user.js
