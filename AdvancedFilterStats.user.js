@@ -4,7 +4,7 @@
 // @author       K1rbs
 // @version      1.0
 // @description  Load Torn userlist stats manually with color thresholds
-// @match        https://www.torn.com/*
+// @match        https://www.torn.com/page.php?sid=UserList*
 // @updateURL    https://raw.githubusercontent.com/K1rbsTorn/torn/main/AdvancedFilterStats.user.js
 // @downloadURL  https://raw.githubusercontent.com/K1rbsTorn/torn/main/AdvancedFilterStats.user.js
 // @grant        GM_xmlhttpRequest
