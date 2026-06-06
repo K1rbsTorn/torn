@@ -219,7 +219,10 @@
 
     function getButtonByText(text) {
         return Array.from(document.querySelectorAll('button'))
-            .find(btn => btn.innerText.toLowerCase().trim() === text.toLowerCase());
+            .find(btn =>
+                btn.innerText &&
+                btn.innerText.toLowerCase().trim() === text.toLowerCase()
+            );
     }
 
     function getFinishButton(actionText) {
@@ -267,10 +270,10 @@
 
             if (!handled && k === keys.start) handled = tryClick(getButtonByText('Start fight'));
 
-            if (!handled && k === keys.main) handled = tryClick(document.querySelector('#attacker #weapon_main, .player___vjxP2:not(:has(.defender___l1ETt)) #weapon_main, #weapon_main:not(.defender___l1ETt)'));
-            if (!handled && k === keys.sec) handled = tryClick(document.querySelector('#attacker #weapon_second, .player___vjxP2:not(:has(.defender___l1ETt)) #weapon_second, #weapon_second:not(.defender___l1ETt)'));
-            if (!handled && k === keys.melee) handled = tryClick(document.querySelector('#attacker #weapon_melee, .player___vjxP2:not(:has(.defender___l1ETt)) #weapon_melee, #weapon_melee:not(.defender___l1ETt)'));
-            if (!handled && k === keys.temp) handled = tryClick(document.querySelector('#attacker #weapon_temp, .player___vjxP2:not(:has(.defender___l1ETt)) #weapon_temp, #weapon_temp:not(.defender___l1ETt)'));
+            if (!handled && k === keys.main) handled = tryClick(document.querySelector('#weapon_main:not(.defender___l1ETt)'));
+            if (!handled && k === keys.sec) handled = tryClick(document.querySelector('#weapon_second:not(.defender___l1ETt)'));
+            if (!handled && k === keys.melee) handled = tryClick(document.querySelector('#weapon_melee:not(.defender___l1ETt)'));
+            if (!handled && k === keys.temp) handled = tryClick(document.querySelector('#weapon_temp:not(.defender___l1ETt)'));
 
             if (handled) {
                 event.preventDefault();
@@ -285,16 +288,33 @@
         if (sidebarElement) sidebarElement.remove();
     }
 
-    function stripModels() {
-        const startTime = Date.now();
-
-        const intervalId = setInterval(function () {
-            if (Date.now() - startTime > 5000) {
-                clearInterval(intervalId);
+    function stripModelsSafeOldWay() {
+        var startTimeDefender = Date.now();
+        var intervalIdDefender = setInterval(function () {
+            if (Date.now() - startTimeDefender > 5000) {
+                clearInterval(intervalIdDefender);
                 return;
             }
 
-            document.querySelectorAll('[class^="modelWrap___"] *').forEach(el => el.remove());
+            var defenderModel = document.querySelectorAll(
+                "#defender > div.playerArea___oG4xu > div.playerWindow___FvmHZ > div > div.modelLayers___FdSU_.center___An_7Z > div.modelWrap___j3kfA *"
+            );
+
+            for (const element of defenderModel) element.remove();
+        }, 100);
+
+        var startTimeAttacker = Date.now();
+        var intervalIdAttacker = setInterval(function () {
+            if (Date.now() - startTimeAttacker > 5000) {
+                clearInterval(intervalIdAttacker);
+                return;
+            }
+
+            var attackerModel = document.querySelectorAll(
+                "#attacker > div.playerArea___oG4xu > div.playerWindow___FvmHZ > div.allLayers___cXY5i > div.modelLayers___FdSU_.center___An_7Z > div.modelWrap___j3kfA *"
+            );
+
+            for (const element of attackerModel) element.remove();
         }, 100);
     }
 
@@ -304,7 +324,7 @@
         addHotkeys();
         initHospitalTimer();
         removeBackground();
-        stripModels();
+        stripModelsSafeOldWay();
     });
 
 })();
