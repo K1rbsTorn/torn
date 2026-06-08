@@ -10,7 +10,7 @@
 (function () {
     'use strict';
 
-    const BEESUS_ID = "3090251";
+    const BEESUS_ID = "1959482";
     let step = 1;
 
     const wishes = [
